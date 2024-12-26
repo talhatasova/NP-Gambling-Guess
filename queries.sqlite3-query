@@ -1,0 +1,2 @@
+-- database: C:\Users\tasov\OneDrive\Desktop\Projects\Upwork Projects\NP-Gambling-Game\game_database.db
+ALTER TABLE guesses ADD COLUMN gambler_id INTEGER REFERENCES gamblers(id);
