@@ -113,7 +113,8 @@ def make_guess(guess: int, gambler_id: int) -> bool:
     if not current_round:
         raise ValueError("No active round.")
     if gambler.can_guess > get_now():
-        raise CooldownException(f"You cannot make a new guess until {gambler.can_guess}")
+        remaining_time:timedelta = gambler.can_guess - get_now()
+        raise CooldownException(f"You cannot make a new guess for **{remaining_time.seconds}** seconds.")
 
     all_guess_so_far = [guess.value for guess in get_guesses()]
     if guess in all_guess_so_far:

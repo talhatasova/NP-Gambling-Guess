@@ -1,6 +1,6 @@
 from datetime import datetime
 from discord import Colour, Embed, Interaction
-
+from database import get_current_round, Round
 
 class Constant():
     ID_LENGTH = 8
@@ -25,6 +25,9 @@ class Emoji():
     ZERO = "0️⃣"
     ONE = "1️⃣"
     TWO = "2️⃣"
+    GAY_KISS = "👨🏿‍❤️‍💋‍👨🏿"
+    GAY_FLAG = "🏳️‍🌈"
+    CONFETTI = "🎉" 
     
     REACTION_ROLES = {
     "🎲": ID.Roles.GAMBLER
@@ -52,4 +55,25 @@ class EmbedMessages():
             )
         embed.add_field(name="🏅 Rewards", value="Make your guesses for a special yarrak from Çüksüzüm54!", inline=False)
         embed.set_footer(text="Use /guess command to make your guess.")
+        return embed
+    
+    def giveHint(interaction:Interaction, msg:str) -> Embed:
+        embed = Embed(
+                title="🎉 New Hint Released!🎉",
+                description=msg,
+                colour=Colour.blue(),
+                timestamp=datetime.now()
+            )
+        embed.set_thumbnail(url=interaction.user.avatar.url)
+        embed.set_footer(text=f"Hint is given by {interaction.user.global_name}")
+        return embed
+    
+    def getAnswer() -> Embed:
+        current_round:Round = get_current_round()
+        embed = Embed(
+                title=f"{Emoji.CHECK} You requested the correct answer. {Emoji.CHECK}",
+                description=f"**{current_round.number}**",
+                colour=Colour.red(),
+                timestamp=datetime.now()
+            )
         return embed

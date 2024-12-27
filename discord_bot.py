@@ -68,6 +68,16 @@ async def guess(interaction:Interaction, guess:int):
     except DuplicateGuessException as e:
         await interaction.response.send_message(f"{e}")
 
+@bot.tree.command(name="hint", description="Give a hint.")
+@app_commands.describe(msg="Give a hint to the gamblers as a message")
+async def hint(interaction:Interaction, msg:str):
+    hintMsg = EmbedMessages.giveHint(interaction, msg)
+    await interaction.response.send_message(embed=hintMsg)
+
+@bot.tree.command(name="get_answer", description="Get the correct answer of the current round.")
+@app_commands.default_permissions(administrator=True)
+async def get_answer(interaction:Interaction):
+    await interaction.response.send_message(embed=EmbedMessages.getAnswer(), ephemeral=True)
 
 # Run the bot
 bot.run(token)
