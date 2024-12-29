@@ -2,9 +2,9 @@ from discord import Intents, Interaction, app_commands
 from discord.ext import commands
 import os
 from dotenv import load_dotenv
+import database
 from database import Gambler, Guess, Round
-from database import get_current_round, new_round, make_guess, add_gambler
-from settings import ID, EmbedMessages
+from settings import ID, EmbedMessages, Emoji
 from exceptions import NoGamblerFoundException, CooldownException, DuplicateGuessException
 # Initialize the bot
 load_dotenv()
@@ -19,11 +19,11 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 GAME_CHANNEL = ID.Channels.NUMBER_GUESS
 
-current_round = get_current_round()
+current_round = database.get_current_round()
 if not current_round:
-    new_round()
+    database.new_round()
     
-CURRENT_NUMBER = get_current_round().number
+CURRENT_NUMBER = database.get_current_round().number
 
 @bot.event
 async def on_ready():
@@ -53,20 +53,35 @@ async def guess(interaction:Interaction, guess:int):
         await interaction.response.send_message("Please enter a valid integer for your guess between [1, 10000].", ephemeral=True)
     try:
         gambler_id = interaction.user.id
-        isCorrect = make_guess(guess_value, gambler_id)
+        isCorrect = database.make_guess(guess_value, gambler_id)
         if isCorrect:
             await interaction.response.send_message(embed=EmbedMessages.getCorrectGuess(interaction, guess_value))
             channel = interaction.guild.get_channel(GAME_CHANNEL)
             await channel.send(embed=EmbedMessages.getNewRound())
         else:
-            await interaction.response.send_message(f"❌ Oops, {interaction.user.mention}! Your guess of **{guess_value}** is shit. Try again!")
+            guess_num = database.get_current_guess_num()
+            until_next_hint = 500-guess_num if guess_num<500 else 750-guess_num if guess_num<750 else 1000-guess_num if guess_num<1000 else 0
+            if guess_num == 500:
+                release_hint(interaction=interaction, hint_level=1)
+            elif guess_num == 750:
+                release_hint(interaction=interaction, hint_level=2)
+            elif guess_num == 1000:
+                release_hint(interaction=interaction, hint_level=3)
+            await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. Make **{until_next_hint}** more guesses to unlock a hint.", delete_after=3)
     except NoGamblerFoundException as e:
-        new_gambler = add_gambler(interaction.user.id, interaction.user.global_name)
+        new_gambler = database.add_gambler(interaction.user.id, interaction.user.global_name)
         await interaction.response.send_message(f"{e} Registering... {new_gambler}", ephemeral=True)
     except CooldownException as e:
         await interaction.response.send_message(f"{e}", ephemeral=True)
     except DuplicateGuessException as e:
-        await interaction.response.send_message(f"{e}")
+        await interaction.response.send_message(f"{e}", delete_after=3)
+
+
+async def release_hint(interaction:Interaction, hint_level:int):
+    hintMsg = EmbedMessages.releaseHint(bot, hint_level)
+    msg = await interaction.channel.send(embed=hintMsg)
+    msg.pin()
+
 
 @bot.tree.command(name="hint", description="Give a hint.")
 @app_commands.describe(msg="Give a hint to the gamblers as a message")

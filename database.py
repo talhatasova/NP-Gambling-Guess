@@ -100,9 +100,17 @@ def new_round():
     session.add(new_round)
     session.commit()
 
+def get_current_guess_num() -> int:
+    current_round:Round = get_current_round()
+    return session.query(Guess).filter(Guess.round_id == current_round.id).count()
+
 def get_guesses() -> list[Guess]:
     current_round:Round = get_current_round()
     return session.query(Guess).filter(Guess.round_id == current_round.id).all()
+
+def get_guess_by_value(value:int) -> Guess:
+    current_round:Round = get_current_round()
+    return session.query(Guess).filter(Guess.round_id == current_round.id).filter(Guess.value==value).first()
 
 def make_guess(guess: int, gambler_id: int) -> bool:
     gambler = get_gambler(gambler_id)
@@ -118,7 +126,9 @@ def make_guess(guess: int, gambler_id: int) -> bool:
 
     all_guess_so_far = [guess.value for guess in get_guesses()]
     if guess in all_guess_so_far:
-        raise DuplicateGuessException(f"**{guess}** has already been made. Pick another number.")
+        old_guess:Guess = get_guess_by_value(guess)
+        old_guess_made_by:Gambler = get_gambler(old_guess.gambler_id)
+        raise DuplicateGuessException(f"**{guess}** has already been made by **{old_guess_made_by.name}**. Pick another number.")
 
     # Determine if the guess is correct
     correct = is_guess_correct(guess, current_round)
@@ -143,6 +153,6 @@ def make_guess(guess: int, gambler_id: int) -> bool:
     else:
         gambler.wrong += 1
 
-    gambler.can_guess = get_now() + timedelta(seconds=30)
+    gambler.can_guess = get_now() + timedelta(seconds=10)
     session.commit()
     return correct
