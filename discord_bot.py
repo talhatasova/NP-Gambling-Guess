@@ -4,7 +4,8 @@ import os
 from dotenv import load_dotenv
 import database
 from database import Gambler, Guess, Round
-from settings import ID, EmbedMessages, Emoji
+from embed_messages import EmbedMessages
+from settings import ID, Emoji, Constant
 from exceptions import NoGamblerFoundException, CooldownException, DuplicateGuessException
 # Initialize the bot
 load_dotenv()
@@ -53,26 +54,38 @@ async def guess(interaction:Interaction, guess:int):
         await interaction.response.send_message("Please enter a valid integer for your guess between [1, 10000].", ephemeral=True)
     try:
         gambler_id = interaction.user.id
+        guess_num = database.get_current_guess_num()
         isCorrect = database.make_guess(guess_value, gambler_id)
         if isCorrect:
-            await interaction.response.send_message(embed=EmbedMessages.getCorrectGuess(interaction, guess_value))
+            await interaction.response.send_message(embed=EmbedMessages.getCorrectGuess(interaction, guess_value, guess_num+1))
             channel = interaction.guild.get_channel(GAME_CHANNEL)
             await channel.send(embed=EmbedMessages.getNewRound())
         else:
-            guess_num = database.get_current_guess_num()
-            until_next_hint = 500-guess_num if guess_num<500 else 750-guess_num if guess_num<750 else 1000-guess_num if guess_num<1000 else 0
-            if guess_num == 500:
-                release_hint(interaction=interaction, hint_level=1)
-            elif guess_num == 750:
-                release_hint(interaction=interaction, hint_level=2)
-            elif guess_num == 1000:
-                release_hint(interaction=interaction, hint_level=3)
-            await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. Make **{until_next_hint}** more guesses to unlock a hint.", delete_after=3)
+            guess_num += 1 
+            lv1 = Constant.HINT_COUNTS[0]
+            lv2 = Constant.HINT_COUNTS[1]
+            lv3 = Constant.HINT_COUNTS[2]
+            until_next_hint = lv1-guess_num if guess_num<lv1 else lv2-guess_num if guess_num<lv2 else lv3-guess_num if guess_num<lv3 else 0
+            if guess_num > lv3:
+                await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. All hints have been released. See the pinned messages.", delete_after=3)
+            else:
+                if guess_num == lv1:
+                    await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. Make **{lv2-lv1}** more guesses to unlock a hint.", delete_after=3)
+                    await release_hint(interaction=interaction, hint_level=1)
+                elif guess_num == lv2:
+                    await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. Make **{lv3-lv2}** more guesses to unlock a hint.", delete_after=3)
+                    await release_hint(interaction=interaction, hint_level=2)
+                elif guess_num == lv3:
+                    await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. All hints have been released. See the pinned messages.", delete_after=3)
+                    await release_hint(interaction=interaction, hint_level=3)
+                else:
+                    await interaction.response.send_message(f"❌ {interaction.user.mention}'s guess **{guess_value}** is {Emoji.GAY_FLAG}. Make **{until_next_hint}** more guesses to unlock a hint.", delete_after=3)
+                
     except NoGamblerFoundException as e:
         new_gambler = database.add_gambler(interaction.user.id, interaction.user.global_name)
         await interaction.response.send_message(f"{e} Registering... {new_gambler}", ephemeral=True)
     except CooldownException as e:
-        await interaction.response.send_message(f"{e}", ephemeral=True)
+        await interaction.response.send_message(f"{e}", ephemeral=True, delete_after=3)
     except DuplicateGuessException as e:
         await interaction.response.send_message(f"{e}", delete_after=3)
 
@@ -80,7 +93,7 @@ async def guess(interaction:Interaction, guess:int):
 async def release_hint(interaction:Interaction, hint_level:int):
     hintMsg = EmbedMessages.releaseHint(bot, hint_level)
     msg = await interaction.channel.send(embed=hintMsg)
-    msg.pin()
+    await msg.pin()
 
 
 @bot.tree.command(name="hint", description="Give a hint.")
@@ -93,6 +106,20 @@ async def hint(interaction:Interaction, msg:str):
 @app_commands.default_permissions(administrator=True)
 async def get_answer(interaction:Interaction):
     await interaction.response.send_message(embed=EmbedMessages.getAnswer(), ephemeral=True)
+
+@bot.tree.command(name="new_round", description="Start a new round manually. Not recommended without an admin's approval.")
+@app_commands.default_permissions(administrator=True)
+async def new_round(interaction:Interaction):
+    current_round = database.get_current_round()
+    database.make_guess(current_round.number, interaction.user.id)
+    await interaction.channel.send(embed=EmbedMessages.getNewRound())
+    await interaction.response.send_message("New round has been successfully created.", ephemeral=True, delete_after=5)
+
+@bot.tree.command(name="set_cooldown", description="Set the cooldown between guesses in second.")
+@app_commands.default_permissions(administrator=True)
+async def set_cooldown(interaction:Interaction, cooldown:int):
+    Constant.GUESS_COOLDOWN = cooldown
+    await interaction.response.send_message(f"New cooldown: **{cooldown}** seconds.", ephemeral=True, delete_after=5)
 
 # Run the bot
 bot.run(token)

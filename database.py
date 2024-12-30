@@ -6,6 +6,7 @@ from sqlalchemy.orm import declarative_base, relationship, sessionmaker
 import random
 from datetime import datetime, timedelta
 from exceptions import NoGamblerFoundException, CooldownException, DuplicateGuessException
+from settings import Constant
 
 Base = declarative_base()
 
@@ -149,10 +150,10 @@ def make_guess(guess: int, gambler_id: int) -> bool:
         current_round.winner = gambler
         current_round.end_time = func.now()
         session.commit()  # Commit changes before starting a new round
-        new_round()  # Start a new round
+        new_round()
     else:
         gambler.wrong += 1
 
-    gambler.can_guess = get_now() + timedelta(seconds=10)
+    gambler.can_guess = get_now() + timedelta(seconds=Constant.GUESS_COOLDOWN)
     session.commit()
     return correct
